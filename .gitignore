@@ -1,0 +1,29 @@
+# Dataset
+dataset/train/*/
+dataset/test/*/
+!dataset/**/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+*.egg-info/
+
+# Virtual Environment
+flower_env/
+venv/
+.env
+
+# Logs & Results
+logs/
+results/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
