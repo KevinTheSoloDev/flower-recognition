@@ -1,5 +1,5 @@
 project:
-  name: "Flower Recognition"
+  name: "Flower Icon Recognition"
   version: "1.0.0"
   num_classes: 24
 
@@ -17,9 +17,32 @@ dataset:
     - ".jpeg"
     - ".png"
 
-# Replace with your 24 flower names
+# Name these after your actual flowers
 classes:
-  - rose
+  - flower1
+  - flower2
+  - flower3
+  - flower4
+  - flower5
+  - flower6
+  - flower7
+  - flower8
+  - flower9
+  - flower10
+  - flower11
+  - flower12
+  - flower13
+  - flower14
+  - flower15
+  - flower16
+  - flower17
+  - flower18
+  - flower19
+  - flower20
+  - flower21
+  - flower22
+  - flower23
+  - flower24
 
 paths:
   models: "models/"

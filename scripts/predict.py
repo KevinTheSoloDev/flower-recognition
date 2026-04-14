@@ -1,10 +1,12 @@
 import os
 import sys
-import yaml
 import json
+import yaml
+import numpy as np
 import argparse
+from PIL import Image
 from datetime import datetime
-from imageai.Classification.Custom import CustomImageClassification
+import tensorflow as tf
 
 def load_config(config_path="config/config.yaml"):
     with open(config_path, "r") as f:
@@ -16,93 +18,79 @@ class FlowerPredictor:
         model_path = os.path.join(
             config["paths"]["models"], "model.h5"
         )
-        json_path = os.path.join(
-            config["paths"]["models"], "model_class.json"
+        classes_path = os.path.join(
+            config["paths"]["models"], "classes.json"
         )
-
+        
         # Check files exist
-        for path in [model_path, json_path]:
+        for path in [model_path, classes_path]:
             if not os.path.exists(path):
                 raise FileNotFoundError(
                     f"\n❌ File not found: {path}\n"
                     "💡 Run: git pull to get latest model!"
                 )
-
+        
+        # Load class names
+        with open(classes_path) as f:
+            self.classes = json.load(f)
+        
         print("⏳ Loading model...")
-        self.predictor = CustomImageClassification()
-        self.predictor.setModelTypeAsMobileNetV2()
-        self.predictor.setModelPath(model_path)
-        self.predictor.setJsonPath(json_path)
-        self.predictor.loadModel(
-            num_objects=config["project"]["num_classes"]
+        self.model = tf.keras.models.load_model(model_path)
+        self.image_size = config["model"]["image_size"]
+        print("✅ Model loaded successfully!")
+    
+    def preprocess(self, image_path):
+        """Prepare image for prediction"""
+        img = Image.open(image_path).convert("RGB")
+        img = img.resize(
+            (self.image_size, self.image_size),
+            Image.LANCZOS
         )
-        print("✅ Model loaded!")
-
+        img_array = np.array(img) / 255.0
+        img_array = np.expand_dims(img_array, axis=0)
+        return img_array
+    
     def predict(self, image_path, top_results=3):
-        """Predict single image"""
+        """Predict flower class"""
         if not os.path.exists(image_path):
             return {"error": f"Image not found: {image_path}"}
-
+        
         try:
-            predictions, probabilities = \
-                self.predictor.classifyImage(
-                    image_path,
-                    result_count=top_results
-                )
-
-            return {
+            # Preprocess image
+            img_array = self.preprocess(image_path)
+            
+            # Get predictions
+            predictions = self.model.predict(
+                img_array, verbose=0
+            )[0]
+            
+            # Get top results
+            top_indices = np.argsort(predictions)[::-1][:top_results]
+            
+            results = {
                 "image": image_path,
                 "timestamp": datetime.now().isoformat(),
                 "version": self.config["project"]["version"],
                 "predictions": [
                     {
-                        "class": pred,
-                        "confidence": round(prob, 2)
+                        "class": self.classes[i],
+                        "confidence": round(
+                            float(predictions[i]) * 100, 2
+                        )
                     }
-                    for pred, prob in zip(predictions, probabilities)
+                    for i in top_indices
                 ]
             }
+            return results
+            
         except Exception as e:
             return {"error": str(e)}
 
-    def predict_batch(self, folder, top_results=3):
-        """Predict all images in a folder"""
-        valid_ext = tuple(self.config["dataset"]["valid_extensions"])
-        images = [
-            f for f in os.listdir(folder)
-            if f.lower().endswith(valid_ext)
-        ]
-
-        if not images:
-            print(f"❌ No images found in {folder}")
-            return []
-
-        print(f"\n🔍 Processing {len(images)} images...")
-        results = []
-
-        for img_file in images:
-            img_path = os.path.join(folder, img_file)
-            result = self.predict(img_path, top_results)
-            results.append(result)
-
-            if "error" not in result:
-                top = result["predictions"][0]
-                print(
-                    f"  🌸 {img_file:<25} → "
-                    f"{top['class']:<20} "
-                    f"({top['confidence']}%)"
-                )
-            else:
-                print(f"  ❌ {img_file}: {result['error']}")
-
-        return results
-
 def print_results(results):
-    """Pretty print results"""
     if "error" in results:
         print(f"\n❌ Error: {results['error']}")
         return
-
+    
     print("\n" + "=" * 50)
     print("🌸 PREDICTION RESULTS")
     print("=" * 50)
@@ -111,7 +99,7 @@ def print_results(results):
     print(f"📦 Version : {results['version']}")
     print("\nTop Predictions:")
     print("-" * 40)
-
+    
     for i, pred in enumerate(results["predictions"], 1):
         bar = "█" * int(pred["confidence"] / 5)
         print(
@@ -122,33 +110,27 @@ def print_results(results):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="🌸 Flower Recognition"
+        description="🌸 Flower Icon Recognition"
     )
     parser.add_argument(
-        "input",
-        help="Image file or folder path"
+        "image",
+        help="Path to image file"
     )
     parser.add_argument(
         "--top", type=int, default=3,
-        help="Number of top results (default: 3)"
+        help="Number of top results"
     )
     parser.add_argument(
         "--save", action="store_true",
         help="Save results as JSON"
     )
     args = parser.parse_args()
-
+    
     config = load_config()
     predictor = FlowerPredictor(config)
-
-    # Single image or batch
-    if os.path.isdir(args.input):
-        results = predictor.predict_batch(args.input, args.top)
-    else:
-        results = predictor.predict(args.input, args.top)
-        print_results(results)
-
-    # Save results
+    results = predictor.predict(args.image, args.top)
+    print_results(results)
+    
     if args.save:
         os.makedirs("results", exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
