@@ -1,0 +1,27 @@
+project:
+  name: "Flower Recognition"
+  version: "1.0.0"
+  num_classes: 24
+
+model:
+  type: "MobileNetV2"
+  image_size: 224
+  batch_size: 32
+  epochs: 50
+
+dataset:
+  path: "dataset/"
+  min_images_per_class: 50
+  valid_extensions:
+    - ".jpg"
+    - ".jpeg"
+    - ".png"
+
+# Replace with your 24 flower names
+classes:
+  - rose
+
+paths:
+  models: "models/"
+  logs: "logs/"
+  results: "results/"
